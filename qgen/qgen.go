@@ -13,14 +13,14 @@ import (
 )
 
 type Args struct {
-	Offset       int64
-	Limit        int
-	Sorting      []string
-	Conditions   map[string]interface{}
-	Fields       []string
-	Groups       []string
-	Distinct     bool
-	UpdateFields map[string]interface{}
+	Offset     int64
+	Limit      int
+	Sorting    []string
+	Conditions map[string]interface{}
+	Fields     []string
+	Groups     []string
+	Distinct   bool
+	Updates    map[string]interface{}
 }
 
 type Obj struct {
@@ -119,16 +119,21 @@ func (q *Obj) Build(query string, args Args) (res string) {
 			var wv string
 			condsCols := strings.Split(k, ":")
 			if len(condsCols) == 1 {
-				wv = fmt.Sprintf("= %s", ConvertToEscapeString(v, ""))
+				wv = fmt.Sprintf("= %s", ConvertToEscapeStringSQL(v, ""))
 			} else if len(condsCols) == 2 {
-				wv = fmt.Sprintf("%s %s", condsCols[1], ConvertToEscapeString(v, ""))
+				wv = fmt.Sprintf("%s %s", condsCols[1], ConvertToEscapeStringSQL(v, ""))
 			}
 
 			condsCol[condsCols[0]] = wv
 		}
 	}
 
-	res = q.RecursiveBuild(format, "query", args, condsCol, nil)
+	buildType := "query"
+	if len(args.Updates) > 0 {
+		buildType = "update"
+	}
+
+	res = q.RecursiveBuild(format, buildType, args, condsCol, nil)
 
 	return
 }
@@ -380,10 +385,7 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 
 		// Add FROM
 		for k, v := range fromAlias {
-			subString = strings.TrimSpace(subString)
-			if strings.HasSuffix(subString, ",") {
-				subString = subString[:len(subString)-1]
-			}
+			subString = RemoveLastCommas(subString)
 			subString += fmt.Sprintf(" from %s %s", v, k)
 		}
 
@@ -458,6 +460,202 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 
 		return
 
+	case "update":
+		format, ok := form.(map[string]interface{})
+		if !ok {
+			utlog.Warnf("Cannot parse %s\n", kind)
+			return
+		}
+
+		var (
+			fromAlias = make(map[string]string)
+		)
+		selectAlias = make(map[string]string)
+
+		// Handle FROM
+		{
+			fromVal, fromExist := format["from"]
+			if !fromExist {
+				utlog.Warn("Update should be has from\n")
+				return
+			}
+
+			fromValMap, ok := fromVal.(map[string]interface{})
+			if !ok {
+				utlog.Warnf("Cannot parse %+v\n", fromVal)
+				return
+			}
+
+			fromValue, ok := fromValMap["value"]
+			if !ok {
+				utlog.Warn("from should has col")
+				return
+			}
+
+			var as string
+			fromAs, ok := fromValMap["as"]
+			if !ok {
+				utlog.Warn("from should has as")
+				return
+			}
+			as, ok = fromAs.(string)
+			if !ok {
+				utlog.Warn("as should be string")
+				return
+			}
+
+			fromValueMap, ok := fromValue.(map[string]interface{})
+			if ok {
+				rs := q.RecursiveBuild(fromValueMap, "query", args, condsCol, nil)
+				fromAlias[as] = rs
+			} else {
+				fromValueStr, ok := fromValue.(string)
+				if ok {
+					fromAlias[as] = fromValueStr
+				} else {
+					utlog.Warn("from should be has map or string value")
+					return
+				}
+			}
+		}
+
+		subString := "update "
+
+		for k, v := range fromAlias {
+			subString += fmt.Sprintf(" %s %s", v, k)
+		}
+
+		subString += " set"
+
+		// Handler SELECT
+		{
+			selectVal, selectExist := format["set"]
+			if !selectExist {
+				utlog.Warn("Update should has set")
+				return
+			}
+
+			selectSlice, ok := selectVal.([]interface{})
+			if !ok {
+				utlog.Warn("Set should be slice")
+				return
+			}
+
+			for _, sel := range selectSlice {
+				selMap, ok := sel.(map[string]interface{})
+				if !ok {
+					utlog.Warn("Couldnt read set data")
+					continue
+				}
+
+				selCol, ok := selMap["col"]
+				if !ok {
+					utlog.Warn("Set should has col")
+					continue
+				}
+
+				selColStr, ok := selCol.(string)
+				if !ok {
+					utlog.Warn("Set column should be string")
+					continue
+				}
+
+				if selColStr != "-" {
+					selColStr = strings.TrimSpace(selColStr)
+					selColStrs := strings.Split(selColStr, ".")
+					selAlias, selField := selColStrs[0], selColStrs[1]
+					tableName, ok := fromAlias[selAlias]
+					if !ok {
+						continue
+					}
+
+					if selField == "*" {
+						for key, v := range q.ListTableColumn[tableName] {
+							xField := fmt.Sprintf("%s.%s", selAlias, key)
+							selectAlias[xField] = v
+
+							updateFieldVal, oks := args.Updates[xField]
+							if !oks {
+								continue
+							}
+							var sc string
+							if key != v {
+								jsonPaths := strings.Split(v, ">")
+								switch len(jsonPaths) {
+								case 2, 3:
+									sc = fmt.Sprintf(" %s = JSON_SET(%s, '%s', %s),", jsonPaths[0], jsonPaths[0], jsonPaths[1], ConvertToEscapeStringSQL(updateFieldVal, ""))
+								default:
+									sc = fmt.Sprintf(" %s = %s,", key, ConvertToEscapeString(updateFieldVal, ""))
+								}
+							} else {
+								sc = fmt.Sprintf(" %s = %s,", key, ConvertToEscapeString(updateFieldVal, ""))
+							}
+							subString += sc
+						}
+						continue
+					}
+					continue
+				}
+
+				selVal, ok := selMap["value"]
+				if !ok {
+					utlog.Warn("Set should has value except * format")
+					continue
+				}
+
+				selValStr, ok := selVal.(string)
+				if !ok {
+					utlog.Warn("Set value should be string")
+					continue
+				}
+
+				selCond, ok := selMap["update_value"]
+				if !ok {
+					utlog.Warn("Set with col - should has cond")
+					continue
+				}
+
+				selCondStr, ok := selCond.(string)
+				if !ok {
+					utlog.Warn("Set Condition should be string")
+					continue
+				}
+
+				subString += fmt.Sprintf(" %s = %s,", selValStr, ConvertToEscapeString(selCondStr, ""))
+			}
+		}
+
+		subString = RemoveLastCommas(subString)
+
+		// Handler WHERE
+		{
+			whereVal, whereExist := format["where"]
+			if whereExist {
+				subString += " where "
+				var sc string
+				whereValMap, ok := whereVal.(map[string]interface{})
+				if !ok {
+					utlog.Warn("Cannot parse Where\n")
+					return
+				}
+				whereAnd, ok := whereValMap["and"]
+				if ok {
+					sc = q.RecursiveBuild(whereAnd, "and", args, condsCol, selectAlias)
+				} else {
+					whereOr, ok := whereValMap["or"]
+					if ok {
+						sc = q.RecursiveBuild(whereOr, "or", args, condsCol, selectAlias)
+					} else {
+						utlog.Warn("Where should has and or or key\n")
+						return
+					}
+				}
+
+				subString += fmt.Sprintf("( %s )", sc)
+			}
+		}
+
+		res = subString
 	case "and", "or":
 		var (
 			sc string

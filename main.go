@@ -152,34 +152,34 @@ func main() {
 	//   	}
 	// `
 
-	query := `
-		{
-			"select": [
-				{"col": "u.*"},
-				{"col": "r.name", "as": "role_name", "value": "r.name"}
-			],
-			"from": {
-				"value": "users", "as": "u"
-			},
-			"join": [
-				{"value": "roles", "as": "r", "type": "inner", "conn": "r.id = u.role_id"}
-			],
-			"where": {
-				"and": [
-					{"col":"ids", "value":{
-						"select": [
-							{"col": "-", "value": "u2.id"}
-						],
-						"from": {
-							"value": "users", "as": "u2"
-						}
-					}},
-					{"col":"email", "value":"u.email"},
-					{"col":"-", "value":"u.active = 1"}
-				]
-			}
-	  	}
-	`
+	// query := `
+	// 	{
+	// 		"select": [
+	// 			{"col": "u.*"},
+	// 			{"col": "r.name", "as": "role_name", "value": "r.name"}
+	// 		],
+	// 		"from": {
+	// 			"value": "users", "as": "u"
+	// 		},
+	// 		"join": [
+	// 			{"value": "roles", "as": "r", "type": "inner", "conn": "r.id = u.role_id"}
+	// 		],
+	// 		"where": {
+	// 			"and": [
+	// 				{"col":"ids", "value":{
+	// 					"select": [
+	// 						{"col": "-", "value": "u2.id"}
+	// 					],
+	// 					"from": {
+	// 						"value": "users", "as": "u2"
+	// 					}
+	// 				}},
+	// 				{"col":"email", "value":"u.email"},
+	// 				{"col":"-", "value":"u.active = 1"}
+	// 			]
+	// 		}
+	//   	}
+	// `
 
 	// query := `
 	// 	{
@@ -199,16 +199,68 @@ func main() {
 
 	// jsondb:"datas>$.name"
 
+	// query := `
+	// 	{
+	// 		"set": [
+	// 			{"col": "u.*"}
+	// 		],
+	// 		"from": {
+	// 			"value": "users", "as": "u"
+	// 		},
+	// 		"where": {
+	// 			"and": [
+	// 				{"col":"ids", "value":{
+	// 					"select": [
+	// 						{"col": "-", "value": "u2.id"}
+	// 					],
+	// 					"from": {
+	// 						"value": "users", "as": "u2"
+	// 					}
+	// 				}},
+	// 				{"col":"email", "value":"u.email"},
+	// 				{"col":"-", "value":"u.active = 1"}
+	// 			]
+	// 		}
+	//   	}
+	// `
+
+	query := `
+		{
+			"set": [
+				{"col": "e.*"}
+			],
+			"from": {
+				"value": "experts", "as": "e"
+			},
+			"where": {
+				"and": [
+	 				{"col":"name", "value":"e.name"}
+	 			]
+			}
+	  	}
+	`
+
+	// args := qgen.Args{
+	// 	Fields: []string{
+	// 		"u.id",
+	// 		"u.first_name",
+	// 	},
+	// 	Conditions: map[string]interface{}{
+	// 		"email:like": "%info%",
+	// 	},
+	// 	Sorting: []string{"-id"},
+	// 	Limit:   3,
+	// }
+
 	args := qgen.Args{
-		Fields: []string{
-			"u.id",
-			"u.first_name",
+		Updates: map[string]interface{}{
+			"e.name":       "testChangeName",
+			"e.updated_at": "2023-04-03T16:39:48+07:00",
+			"e.updated_by": "denies-test",
 		},
 		Conditions: map[string]interface{}{
-			"email:like": "%info%",
+			"name:like": "%just%",
 		},
-		Sorting: []string{"-id"},
-		Limit:   3,
 	}
 
 	res := qGenObj.Build(query, args)
