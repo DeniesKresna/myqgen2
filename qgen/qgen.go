@@ -52,6 +52,7 @@ func InitObject(isLogged bool, tables ...interface{}) (obj *Obj, err error) {
 		}
 
 		listTableColumn[tbName] = make(map[string]string)
+		listTableColumn[tbName]["*"] = "*"
 
 		var recursiveStructField func(structField interface{}) error
 		recursiveStructField = func(structField interface{}) (errs error) {
@@ -154,6 +155,7 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 		var (
 			subString = ""
 			fromAlias = make(map[string]string)
+			joinAlias = make(map[string]string)
 			joinConn  = make(map[string]string)
 		)
 		selectAlias = make(map[string]string)
@@ -277,6 +279,10 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 						return
 					}
 
+					if _, ok := joinAlias[as]; !ok {
+						joinAlias[as] = joinValueStr
+					}
+
 					joinConn[as] = fmt.Sprintf("%s join %s %s on %s", joinTypeStr, joinValueStr, as, joinConStr)
 				}
 			}
@@ -327,16 +333,19 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 					selAlias, selField := selColStrs[0], selColStrs[1]
 					tableName, ok := fromAlias[selAlias]
 					if !ok {
-						continue
+						tableName, ok = joinAlias[selAlias]
+						if !ok {
+							continue
+						}
 					}
 
 					if selField == "*" {
 						for key, v := range q.ListTableColumn[tableName] {
 							xField := fmt.Sprintf("%s.%s", selAlias, key)
-							selectAlias[xField] = v
 							if !utslice.IsExist(args.Fields, xField) {
 								continue
 							}
+							selectAlias[xField] = v
 							var sc string
 							if key != v {
 								jsonPaths := strings.Split(v, ">")
@@ -348,6 +357,10 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 								}
 							} else {
 								sc = xField
+							}
+							if strings.HasSuffix(sc, "*") {
+								subString += fmt.Sprintf(" %s,", sc)
+								continue
 							}
 							subString += fmt.Sprintf(" %s as %s,", sc, key)
 						}
@@ -451,7 +464,7 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 				subString += fmt.Sprintf(" %s", sortRes)
 			}
 
-			if args.Limit >= 0 {
+			if args.Limit > 0 {
 				subString += fmt.Sprintf(" limit %d", args.Limit)
 			}
 
@@ -730,7 +743,7 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 						case 2:
 							valueVal = fmt.Sprintf("%s.%s->>\"%s\"", selAlias, valueCols[0], valueCols[1])
 						default:
-							valueVal = valueCols[0]
+							valueVal = whereValStr
 						}
 					} else {
 						valueVal = whereValStr
