@@ -135,6 +135,10 @@ func (q *Obj) Build(query string, args Args) (res string) {
 
 	res = q.RecursiveBuild(format, buildType, args, condsCol, nil)
 
+	if q.IsLogged {
+		fmt.Printf("QUERY LOG: %s\n", res)
+	}
+
 	return
 }
 
