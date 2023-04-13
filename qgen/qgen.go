@@ -137,7 +137,7 @@ func (q *Obj) Build(query string, args Args) (res string) {
 	res = q.RecursiveBuild(format, buildType, args, condsCol, nil)
 
 	if q.IsLogged {
-		fmt.Printf("QUERY LOG: %s\n", res)
+		utlog.Infof("QUERY LOG: %s\n", res)
 	}
 
 	return
@@ -153,12 +153,12 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 		}
 
 		var (
-			subString = ""
-			fromAlias = make(map[string]string)
-			joinAlias = make(map[string]string)
-			joinConn  = make(map[string]string)
+			subString   = ""
+			fromAlias   = make(map[string]string)
+			joinAlias   = make(map[string]string)
+			joinConn    = make(map[string]string)
+			selectAlias = make(map[string]string)
 		)
-		selectAlias = make(map[string]string)
 
 		// Handle FROM
 		{
@@ -342,10 +342,11 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 					if selField == "*" {
 						for key, v := range q.ListTableColumn[tableName] {
 							xField := fmt.Sprintf("%s.%s", selAlias, key)
+							selectAlias[xField] = v
+
 							if !utslice.IsExist(args.Fields, xField) {
 								continue
 							}
-							selectAlias[xField] = v
 							var sc string
 							if key != v {
 								jsonPaths := strings.Split(v, ">")
@@ -485,9 +486,9 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 		}
 
 		var (
-			fromAlias = make(map[string]string)
+			fromAlias   = make(map[string]string)
+			selectAlias = make(map[string]string)
 		)
-		selectAlias = make(map[string]string)
 
 		// Handle FROM
 		{
