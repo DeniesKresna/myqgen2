@@ -450,6 +450,24 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 						isDesc = true
 					}
 					newV := strings.TrimPrefix(v, "-")
+
+					ordColStr := strings.TrimSpace(newV)
+					ordColStrs := strings.Split(ordColStr, ".")
+					ordTbAlias, ordField := ordColStrs[0], ordColStrs[1]
+					tableName, ok := fromAlias[ordTbAlias]
+					if !ok {
+						tableName, ok = joinAlias[ordTbAlias]
+						if !ok {
+							continue
+						}
+					}
+					valueCol := q.ListTableColumn[tableName][ordField]
+					valueCols := strings.Split(valueCol, ">")
+					switch len(valueCols) {
+					case 2, 3:
+						newV = fmt.Sprintf("%s.%s->>\"%s\"", ordTbAlias, valueCols[0], valueCols[1])
+					default:
+					}
 					if ok {
 						sortRes += fmt.Sprintf(" %s ", newV)
 						if isDesc {
