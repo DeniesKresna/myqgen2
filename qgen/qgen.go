@@ -646,18 +646,18 @@ func (q *Obj) RecursiveBuild(form interface{}, kind string, args Args, condsCol 
 				}
 
 				selCond, ok := selMap["update_value"]
-				if !ok {
-					utlog.Warn("Set with col - should has cond")
+				if ok {
+					selCondStr, ok := selCond.(string)
+					if !ok {
+						utlog.Warn("Set Condition should be string")
+						continue
+					}
+
+					subString += fmt.Sprintf(" %s = %s,", selValStr, ConvertToEscapeString(selCondStr, ""))
 					continue
 				}
-
-				selCondStr, ok := selCond.(string)
-				if !ok {
-					utlog.Warn("Set Condition should be string")
-					continue
-				}
-
-				subString += fmt.Sprintf(" %s = %s,", selValStr, ConvertToEscapeString(selCondStr, ""))
+				subString += fmt.Sprintf(" %s, ", selValStr)
+				continue
 			}
 		}
 
