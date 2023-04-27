@@ -105,8 +105,14 @@ func InitObject(isLogged bool, tables ...interface{}) (obj *Obj, err error) {
 	return
 }
 
+func (q *Obj) standardizeSpaces(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
 func (q *Obj) Build(query string, args Args) (res string) {
 	var format = make(map[string]interface{})
+	query = q.standardizeSpaces(query)
+
 	err := json.Unmarshal([]byte(query), &format)
 	if err != nil {
 		utlog.Errorf("err: %+v\n", err)
