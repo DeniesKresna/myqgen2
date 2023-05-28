@@ -95,17 +95,17 @@ const GetUser = `
 ```
 query := r.q.Build(queries.GetUser, qgen.Args{
 		Fields: []string{
-			"userID",
-			"userCreatedAt",
-			"userUpdatedAt",
-			"userDeletedAt",
-			"userFirstName",
-			"userLastName",
-			"userEmail",
-			"userPhone",
-			"userImageURL",
-			"userRoleID",
-			"roleName",
+			"u.id",
+			"u.created_at",
+			"u.updated_at",
+			"u.deleted_at",
+			"u.first_name",
+			"u.last_name",
+			"u.email",
+			"u.phone",
+			"u.image_url",
+			"u.role_id",
+			"r.name",
 		},
 		Conditions: map[string]interface{}{
 			"id": 1,
