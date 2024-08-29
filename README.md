@@ -119,7 +119,7 @@ SELECT  users.id, users.created_at, users.updated_at, users.deleted_at, users.fi
 ```
 You can use whatever mysql executer package you want.
 
-### Simple Documentation
+### Additional Information
 
 * in this pattern 
 ```{"col": "r.name", "as": "role_name", "value": "r.name"}```
